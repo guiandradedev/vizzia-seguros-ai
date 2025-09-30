@@ -1,0 +1,7 @@
+venv
+__pycache__
+runs
+results/*
+images_test/*
+yolo11n.pt
+plate-model.pt
