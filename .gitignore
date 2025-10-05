@@ -5,3 +5,10 @@ results/*
 images_test/*
 yolo11n.pt
 plate-model.pt
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+uploads
+outputs
