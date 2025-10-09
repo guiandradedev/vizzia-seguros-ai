@@ -5,3 +5,5 @@ torch
 easyocr
 flask
 uuid
+osmnx
+pandas
