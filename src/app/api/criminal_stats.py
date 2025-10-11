@@ -1,13 +1,35 @@
 import pandas as pd
 import numpy as np
 import osmnx as ox
+import brazilcep
+from geopy.geocoders import Nominatim
+import sys
+import os
+import unicodedata
+nfkd_form = unicodedata.normalize('NFD', texto)
+geolocator = Nominatim(user_agent="test_app")
 
-def get_nearby_crimes_amount(street, city, radius=500):
-    # Define a localização central
-    vehicles_df = pd.read_csv('src/data/VeiculosSubtraidos_2017_2025.csv')
-    print('File readed')
-    local_graph = ox.graph.graph_from_address(street, radius, dist_type='bbox', network_type='all_public', simplify=True, retain_all=True, truncate_by_edge=True, custom_filter=None)
+def get_nearby_crimes_amount(zipcode, radius=500):
+    vehicles_df = pd.read_csv('src\data\VeiculosSubtraidos_2017_2025.csv')
 
+    has_lat_lon = is_cep_valid(zipcode)
+    if has_lat_lon:
+        location = get_place_by_cep(zipcode)
+        coordinates = (location.latitude,location.longitude)
+
+        print("Using Lat Lon")
+        local_graph = ox.graph.graph_from_point(coordinates, radius, dist_type='bbox', network_type='all', 
+                                                simplify=True, retain_all=False, truncate_by_edge=False, custom_filter=None)
+    else:
+        location = get_place_by_cep(zipcode)
+        street = location['street']
+
+        print("Using Street")
+        local_graph = ox.graph.graph_from_address(street, radius, dist_type='bbox', network_type='all_public', 
+                                                  simplify=True, retain_all=True, truncate_by_edge=True, custom_filter=None)
+
+    city = get_city_by_cep(zipcode)
+    city = unicodedata.normalize('NFD', city).encode('ascii', 'ignore').decode("utf-8")
     df_city = vehicles_df[vehicles_df['CIDADE'] == city.upper()]
 
     maior_lat, menor_lat, maior_lon, menor_lon = get_radius_coordinates(local_graph)
@@ -53,4 +75,36 @@ def get_radius_coordinates(local_graph):
             menor_lon = lon[1]
     return maior_lat, menor_lat, maior_lon, menor_lon
 
-print(get_nearby_crimes_amount("Rua Falcao Filho", "Campinas", 500))
+def get_place_by_cep(zipcode):
+    try:
+        address = brazilcep.get_address_from_cep(zipcode)
+        location = geolocator.geocode(address['street'] + ", " + address['city'] + " - " + address['district'])
+        if location:
+            return location
+        else:
+            return address
+    except Exception as e:
+        print(f"Erro ao reconhecer o CEP {zipcode} {e}")
+        sys.exit(1)
+
+def get_city_by_cep(zipcode):
+    try:
+        address = brazilcep.get_address_from_cep(zipcode)
+        return address['city']
+    except Exception as e:
+        print(f"Erro ao reconhecer o CEP {zipcode} {e}")
+        sys.exit(1)
+
+def is_cep_valid(zipcode):
+    try:
+        address = brazilcep.get_address_from_cep(zipcode)
+        location = geolocator.geocode(address['street'] + ", " + address['city'] + " - " + address['district'])
+        if location:
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(f"Erro ao reconhecer o CEP {zipcode} {e}")
+        sys.exit(1)
+
+print(get_nearby_crimes_amount("12354321", 500))
