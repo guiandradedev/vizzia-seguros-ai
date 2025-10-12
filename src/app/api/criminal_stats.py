@@ -6,7 +6,7 @@ from geopy.geocoders import Nominatim
 import sys
 import os
 import unicodedata
-nfkd_form = unicodedata.normalize('NFD', texto)
+# nfkd_form = unicodedata.normalize('NFD', texto)
 geolocator = Nominatim(user_agent="test_app")
 
 def get_nearby_crimes_amount(zipcode, radius=500):
@@ -23,15 +23,17 @@ def get_nearby_crimes_amount(zipcode, radius=500):
     else:
         location = get_place_by_cep(zipcode)
         street = location['street']
-
+        street = unicodedata.normalize('NFD', street).encode('ascii', 'ignore').decode("utf-8")
+        print (street)
         print("Using Street")
         local_graph = ox.graph.graph_from_address(street, radius, dist_type='bbox', network_type='all_public', 
                                                   simplify=True, retain_all=True, truncate_by_edge=True, custom_filter=None)
 
     city = get_city_by_cep(zipcode)
+    print(city)
     city = unicodedata.normalize('NFD', city).encode('ascii', 'ignore').decode("utf-8")
     df_city = vehicles_df[vehicles_df['CIDADE'] == city.upper()]
-
+    print(df_city)
     maior_lat, menor_lat, maior_lon, menor_lon = get_radius_coordinates(local_graph)
 
     local_df = pd.DataFrame()
@@ -46,16 +48,16 @@ def get_nearby_crimes_amount(zipcode, radius=500):
     return local_df.shape[0]
 
 def classify_crime_amount(amount):
-    if amount == 0:
-        return "Muito Baixo"
-    elif amount <= 500:
-        return "Baixo"
-    elif amount <= 100:
-        return "Médio"
-    elif amount <= 2000:
-        return "Alto"
-    else:
-        return "Muito Alto"
+    if amount > 100: 
+        danger_level = amount // 100
+    else: 
+        if amount < 50:
+            danger_level = 0
+        else: 
+            danger_level = 1
+    if danger_level > 10:
+        danger_level = 10
+    return danger_level
 
 def get_radius_coordinates(local_graph):
     maior_lat=-1000
@@ -107,4 +109,4 @@ def is_cep_valid(zipcode):
         print(f"Erro ao reconhecer o CEP {zipcode} {e}")
         sys.exit(1)
 
-print(get_nearby_crimes_amount("12354321", 500))
+print(get_nearby_crimes_amount("13034-160",500))
