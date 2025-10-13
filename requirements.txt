@@ -7,3 +7,5 @@ flask
 uuid
 osmnx
 pandas
+brazilcep
+geopy

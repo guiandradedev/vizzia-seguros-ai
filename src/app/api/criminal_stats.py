@@ -10,7 +10,7 @@ import unicodedata
 geolocator = Nominatim(user_agent="test_app")
 
 def get_nearby_crimes_amount(zipcode, radius=500):
-    vehicles_df = pd.read_csv('src\data\VeiculosSubtraidos_2017_2025.csv')
+    vehicles_df = pd.read_csv('src/data/VeiculosSubtraidos_2017_2025.csv')
 
     has_lat_lon = is_cep_valid(zipcode)
     if has_lat_lon:
@@ -108,5 +108,3 @@ def is_cep_valid(zipcode):
     except Exception as e:
         print(f"Erro ao reconhecer o CEP {zipcode} {e}")
         sys.exit(1)
-
-print(get_nearby_crimes_amount("13034-160",500))
