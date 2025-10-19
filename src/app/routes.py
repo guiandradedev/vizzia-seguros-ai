@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from src.app.api.plate import process_plate
 from src.app.api.criminal_stats import get_nearby_crimes_amount
 from src.app.api.criminal_stats import classify_crime_amount
-
+from src.app.api.fipe_search import get_models_brand_by_year
 bp = Blueprint('main', __name__)
 
 @bp.route('/process_image', methods=['POST'])
@@ -35,5 +35,25 @@ def criminal_statistc_route():
             'crimes_amount': amount,
             'danger_level': level # Valor de 0 a 10
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+
+@bp.route('/get_models_by_year', methods=['POST'])
+def criminal_statistc_route():
+    data = request.get_json()
+
+    year_code = data.get('year_code')
+    brand_code = data.get('brand_code')
+
+    if not year_code:
+        return jsonify({'error' : 'campo ano nulo'}), 400
+    if not brand_code:
+        return jsonify({'error' : 'campo marca nulo'}), 400
+    try:
+        models_json = get_models_brand_by_year(year_code=year_code, 
+                                               brand_code=brand_code)
+
+        return models_json
     except Exception as e:
         return jsonify({'error': str(e)}), 500

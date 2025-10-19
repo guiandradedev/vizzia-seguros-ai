@@ -1,6 +1,6 @@
 import requests
 
-def get_fipe_value_by_info(client_brand, client_car_model, client_car_year):
+def get_fipe_by_info(client_brand, client_car_model, client_car_year):
     base_url = f"https://parallelum.com.br/fipe/api/v1/carros"
 
 
@@ -12,11 +12,10 @@ def get_fipe_value_by_info(client_brand, client_car_model, client_car_year):
 
     year = get_year_by_model_and_brand(model_code = model_code , brand_code = brand_code, client_car_year = client_car_year)
     year_code = year['codigo']
-    print(year)
     fipe = requests.get(f'{base_url}/marcas/{brand_code}/modelos/{model_code}/anos/{year_code}').json()
 
 
-    return fipe['Valor']
+    return fipe
 
 def get_brand_code_by_name(brand_name):
     base_url = f"https://parallelum.com.br/fipe/api/v1/carros"
@@ -67,4 +66,12 @@ def get_year_by_model_and_brand(model_code, brand_code, client_car_year):
         raise ValueError('Modelo {client_car_year} não encontrada')
     return find_year
 
-print(get_fipe_value_by_info('VW - VolksWagen','JETTA Comfortline 1.4 TSI 16V 4p Aut.','2018'))
+def get_models_brand_by_year(brand_code,year_code):
+    base_url = f"https://fipe.parallelum.com.br/api/v2/cars"
+
+    models_year_json = requests.get(f'{base_url}/brands/{brand_code}/years/{year_code}/models').json()
+    return models_year_json
+
+
+# print('teste')
+# print(get_models_brand_by_year(59,'2020-5'))
