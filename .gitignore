@@ -14,3 +14,4 @@ uploads
 outputs
 VeiculosSubtraidos_2017_2025.csvsrc/data/VeiculosSubtraidos_2017_2025.csv
 .env
+./cache
