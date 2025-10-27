@@ -3,6 +3,7 @@ from src.app.api.plate import process_plate
 from src.app.api.criminal_stats import get_nearby_crimes_amount
 from src.app.api.criminal_stats import classify_crime_amount
 from src.app.api.fipe_search import get_models_brand_by_year
+from src.app.utils.err_api import ErrAPI
 bp = Blueprint('main', __name__)
 
 @bp.route('/process_image', methods=['POST'])
@@ -13,9 +14,14 @@ def process_image_route():
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
-    result = process_plate(file)
-    return jsonify(result)
-
+    try:
+        result = process_plate(file)
+        return jsonify(result)
+    except ErrAPI as e:
+        print(e.status_code)
+        return jsonify({'error': str(e)}), e.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 @bp.route('/get_crime_amount', methods=['POST'])
 def criminal_statistc_route():
     data = request.get_json()
@@ -40,8 +46,10 @@ def criminal_statistc_route():
     
 
 @bp.route('/get_models_by_year', methods=['POST'])
-def criminal_statistc_route():
+def get_models_by_year():
     data = request.get_json()
+
+    print(data)
 
     year_code = data.get('year_code')
     brand_code = data.get('brand_code')
