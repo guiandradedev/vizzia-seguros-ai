@@ -5,12 +5,13 @@ import cv2
 import os
 import uuid
 from fast_plate_ocr import LicensePlateRecognizer
+from src.app.utils.err_api import ErrAPI
 
 def detect_car(car_detection_model, image_path):
     image = cv2.imread(image_path)
     if(image is None):
         Colors.error("Erro: Não foi possível carregar a imagem")
-        exit()
+        raise ErrAPI("Imagem nula ou inválida")
 
     car_class_id = 2 # Classe do carro para limitar o tipo de detecções possíveis
 
@@ -24,11 +25,11 @@ def detect_car(car_detection_model, image_path):
     # Verifica se há detecções de carros
     if len(results[0].boxes) == 0:
         Colors.error("Erro: Nenhum carro detectado na imagem")
-        exit()
+        raise ErrAPI("Nenhum carro detectado na imagem")
 
     if len(results[0].boxes) > 1:
         Colors.error("Erro: Múltiplos carros detectados na imagem")
-        exit()
+        raise ErrAPI("Múltiplos carros detectados na imagem")
 
     # Se passou aqui tem especificamente 1 carro detectado
     car = results[0]
@@ -50,12 +51,12 @@ def detect_car(car_detection_model, image_path):
 def detect_plate(plate_detection_model, image, output_path, unique_id):
     if image is None:
         Colors.error("Erro: Imagem não fornecida para detecção de placa")
-        exit()
+        raise ErrAPI("Imagem nula")
         
     if not isinstance(image, np.ndarray) or image.ndim != 3:  # Correção: deve ser != 3
         Colors.error("Erro: 'image' não é uma imagem válida ou foi corrompida.")
         Colors.error(f"Tipo: {type(image)}, Shape: {getattr(image, 'shape', 'N/A')}")
-        exit()
+        raise ErrAPI("Imagem inválida")
 
     # Realiza a detecção da placa na imagem do carro
     plate_results = plate_detection_model(
@@ -72,7 +73,7 @@ def detect_plate(plate_detection_model, image, output_path, unique_id):
     if len(plate_results[0].boxes) == 0:
         Colors.error("Erro: Nenhuma placa detectada na imagem")
         Colors.info("Verifique a imagem 'car_cropped_debug.jpg' para ver se o carro foi cortado corretamente")
-        exit()
+        raise ErrAPI("Nenhuma placa detectada na imagem", 422)
 
     if len(plate_results[0].boxes) > 1:
         Colors.warning("Aviso: Múltiplas placas detectadas, usando a primeira")
@@ -113,11 +114,69 @@ def convert_plate_to_string(plate, ocr_model):
 
     # return ocr_model.run(thresh_image)[0].replace("_", "")
 
+def classify_color(color_model, image):
+    yolo_result = color_model(source=image, conf=0.2)
+
+    result = yolo_result[0]
+
+    # Extract top1 index and confidence safely
+    try:
+        top1_idx = int(result.probs.top1)
+    except Exception:
+        # if it's a tensor or numpy array
+        try:
+            top1_idx = int(result.probs.top1.cpu().numpy())
+        except Exception:
+            # fallback: try as python int
+            top1_idx = int(result.probs.top1)
+
+    try:
+        top1_conf = float(result.probs.top1conf.cpu().numpy())
+    except Exception:
+        try:
+            top1_conf = float(result.probs.top1conf)
+        except Exception:
+            top1_conf = 0.0
+
+    # English -> Portuguese mapping based on confusion matrix labels
+    color_map_pt = {
+        'beige': 'Bege',
+        'black': 'Preto',
+        'blue': 'Azul',
+        'brown': 'Marrom',
+        'gold': 'Dourado',
+        'green': 'Verde',
+        'grey': 'Cinza',
+        'orange': 'Laranja',
+        'pink': 'Rosa',
+        'purple': 'Roxo',
+        'red': 'Vermelho',
+        'silver': 'Prata',
+        'white': 'Branco',
+        'yellow': 'Amarelo',
+        'background': 'N/A'
+    }
+
+    # Get the english name from model.names (safely)
+    try:
+        eng_name = color_model.names[top1_idx]
+    except Exception:
+        # fallback: if names is dict-like, try direct access
+        try:
+            eng_name = color_model.names[str(top1_idx)]
+        except Exception:
+            eng_name = str(top1_idx)
+
+    eng_name_lower = eng_name.lower().strip()
+    pt_name = color_map_pt.get(eng_name_lower, eng_name)
+
+    return [pt_name, top1_conf]
 
 def process_plate(file):
     model = current_app.config['YOLO']
     plate_model = current_app.config['YOLO_PLATE']
     plate_ocr = current_app.config['PLATE_OCR']
+    color_model = current_app.config['COLOR']
     upload_folder = current_app.config['UPLOAD_FOLDER']
     
     # Salva o arquivo temporariamente no upload_folder
@@ -132,9 +191,15 @@ def process_plate(file):
         os.makedirs(output_path)
     
     # Chama detect_car com o caminho do arquivo salvo
-    car_image = detect_car(model, file_path)
-    plate = detect_plate(plate_model, car_image, output_path, unique_id)
-    string = convert_plate_to_string(plate, plate_ocr)
+    try:
+        car_image = detect_car(model, file_path)
+        color = classify_color(color_model, car_image)
+        plate = detect_plate(plate_model, car_image, output_path, unique_id)
+        string = convert_plate_to_string(plate, plate_ocr)
+    except Exception as e:
+        # Limpa o arquivo temporário
+        os.remove(file_path)
+        raise e
 
     # Pré-processa a imagem
     # img = preprocess_image(file)
@@ -149,4 +214,17 @@ def process_plate(file):
     # }
     
     # return result
-    return string or "N/A"
+    return {
+        'plate': {
+            'text': string or 'N/A',
+            'confidence': 0.0
+        },
+        'color': {
+            'text': color[0],
+            'confidence': f"{color[1]:.5f}"
+        },
+        'brand': {
+            'text': 'N/A',
+            'confidence': 0.0
+        }
+    }
