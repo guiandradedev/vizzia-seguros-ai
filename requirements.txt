@@ -9,3 +9,4 @@ osmnx
 pandas
 brazilcep
 geopy
+dotenv
