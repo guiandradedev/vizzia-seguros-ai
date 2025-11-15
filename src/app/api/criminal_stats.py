@@ -108,3 +108,127 @@ def is_cep_valid(zipcode):
     except Exception as e:
         print(f"Erro ao reconhecer o CEP {zipcode} {e}")
         sys.exit(1)
+
+
+def get_model_robery_quantity(model_name):
+    df = pd.read_excel("src/data/robery_rate_df.xlsx")
+
+    # Remove espaços extras
+    df["Marca"] = df["Marca"].str.strip()
+
+    # Aplica a função à coluna
+    df[["Marca", "Modelo"]] = df["Marca"].apply(
+        lambda x: pd.Series(separar_marca_modelo(x))
+    )
+
+    # Formata o modelo
+    df = df.dropna()
+    df["Modelo"] = df["Modelo"].str.split(" ").str[0]
+
+    # Agrupo modelos
+    df_grouped = (
+        df.groupby(["Modelo", "Marca"], as_index=False)["Quantidade de Roubos"]
+        .sum()
+    )# df_grouped.size
+
+    df_clean = df_grouped.dropna()
+    df_clean = df_clean[(df_clean["Modelo"] != "") & (df_clean["Marca"] != "")]
+
+    classes = [
+        {
+            "name": "VOLKSWAGEN",
+            "possibilities": ["VOLKSWAGEN", "VW"]
+        },
+        {
+            "name": "CHEVROLET",
+            "possibilities": ["CHEVROLET", "GM", "CHEV"]
+        },
+        {
+            "name": "LAND ROVER",
+            "possibilities": ["LR", "LAND ROVER"]
+        },
+        {
+            "name": "FORD",
+            "possibilities": ["FORD"]
+        },
+        {
+            "name": "HYUNDAI",
+            "possibilities": ["HYUNDAI"]
+        },
+        {
+            "name": "HONDA",
+            "possibilities": ["HONDA"]
+        },
+        {
+            "name": "RENAULT",
+            "possibilities": ["RENAULT"]
+        },
+        {
+            "name": "FIAT",
+            "possibilities": ["FIAT"]
+        },
+        {
+            "name": "PORSCHE",
+            "possibilities": ["PORSCHE"]
+        },
+        {
+            "name": "PEUGEOT",
+            "possibilities": ["PEUGEOT"]
+        },
+        {
+            "name": "JEEP",
+            "possibilities": ["JEEP"]
+        },
+    ]
+
+    # Criar dicionário: cada possibilidade mapeia para o nome principal
+    marca_map = {}
+    for classe in classes:
+        for poss in classe["possibilities"]:
+            marca_map[poss.upper()] = classe["name"].upper()
+
+    # df_clean["Modelo"] = df_clean["Modelo"].str.upper().map(marca_map)
+    df_clean["Marca"] = df_clean["Marca"].str.upper().map(marca_map)
+    df_clean = df_clean.groupby(["Marca", "Modelo"], as_index=False)["Quantidade de Roubos"].sum()
+
+    result = df_clean[df_clean["Modelo"] == model_name]
+    print(result)
+    total_roubos = 0
+    for i, row in result.iterrows():
+        # print(total_roubos)
+        total_roubos += row["Quantidade de Roubos"] 
+
+    gol_qtd = 83008
+    nota = total_roubos / gol_qtd
+    return nota
+
+
+# Separa marca e modelo tratando ambos os formatos
+def separar_marca_modelo(valor):
+    if pd.isna(valor):
+        return None, None
+
+    valor = valor.strip()
+
+    # Caso 1: tem "I/" no começo (ex: I/VW JETTA)
+    if valor.startswith("I/"):
+        partes = valor.split(" ", 1)
+        if len(partes) > 1:
+            marca_parte = partes[0].replace("I/", "").strip()  # tira o "I/"
+            modelo_parte = partes[1].strip()
+            return marca_parte, modelo_parte
+
+    # Caso 2: formato "VW/JETTA"
+    elif "/" in valor:
+        partes = valor.split("/")
+        if len(partes) == 2:
+            return partes[0].strip(), partes[1].strip(" ")
+
+    # Caso 3: formato inesperado → tenta separar por espaço
+    partes = valor.split(" ", 1)
+    if len(partes) == 2:
+        return partes[0].strip(), partes[1].strip()
+    else:
+        return valor, None
+    
+print(get_model_robery_quantity("HB20"))
