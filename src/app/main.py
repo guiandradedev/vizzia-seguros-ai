@@ -14,10 +14,12 @@ def create_app():
 
     yolo = load_yolo('./src/models/yolo11x.pt')
     plate = load_yolo('./src/models/plate-model.pt')
+    brand = load_yolo('./src/models/brand-detector.pt')
     color = load_yolo('./src/models/color-classifier.pt')
     plate_ocr = LicensePlateRecognizer('cct-s-v1-global-model')
     app.config['YOLO'] = yolo 
     app.config['YOLO_PLATE'] = plate
+    app.config['BRAND_DETECTOR'] = brand
     app.config['PLATE_OCR'] = plate_ocr
     app.config['COLOR'] = color
 

@@ -99,18 +99,72 @@ def detect_plate(plate_detection_model, image, output_path, unique_id):
     return plate_cropped
 
 def convert_plate_to_string(plate, ocr_model):
-    if plate is None or plate.ndim != 3: 
+    """Run OCR on a plate image and return the predicted string and a confidence score.
+
+    The function asks the OCR model to return per-character confidences when possible
+    and computes an overall confidence as the mean confidence of the predicted (non-blank)
+    character slots. Returns a tuple: (predicted_string, confidence_float)
+    """
+    if plate is None or plate.ndim != 3:
         Colors.error("Erro: Imagem de placa inválida.")
-        return []
-    
-    # gray_image = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
-    # _, thresh_image = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    
+        return ('', 0.0)
+
     resized_plate = cv2.resize(plate, (128, 64))
-    # Adiciona dimensão de batch: (1, 64, 128, 3)
+    # Adiciona dimensão de batch: (1, H, W, C)
     input_image = np.expand_dims(resized_plate, axis=0)
-    
-    return ocr_model.run(input_image)[0].replace("_", "")
+
+    try:
+        # Request confidences as well
+        res = ocr_model.run(input_image, return_confidence=True)
+    except TypeError:
+        # Fallback if model doesn't accept return_confidence (old API)
+        strings = ocr_model.run(input_image)
+        pred = strings[0].replace("_", "") if strings else ''
+        return (pred, 0.0)
+    except Exception as e:
+        Colors.error(f"OCR error: {e}")
+        return ('', 0.0)
+
+    # res is expected to be a tuple: (list_of_strings, confidences_array)
+    if isinstance(res, tuple) and len(res) == 2:
+        strings, confs = res
+    else:
+        # Unexpected shape, try to parse as only strings
+        strings = res if isinstance(res, list) else []
+        confs = None
+
+    pred_raw = strings[0] if strings else ''
+    pred = pred_raw.replace("_", "")
+
+    plate_confidence = 0.0
+    try:
+        if confs is not None:
+            # confs shape: (N, plate_slots)
+            slot_conf = np.array(confs)[0]  # first image
+            # Build mask of slots that are not blank according to raw prediction
+            mask = [ch != '_' for ch in list(pred_raw)]
+            if any(mask):
+                used = slot_conf[mask]
+                # defensive: if used is empty fallback to mean of all slots
+                if used.size > 0:
+                    plate_confidence = float(np.mean(used))
+                else:
+                    plate_confidence = float(np.mean(slot_conf))
+            else:
+                # No non-blank slots (unexpected) -> use mean of all
+                plate_confidence = float(np.mean(slot_conf))
+        else:
+            plate_confidence = 0.0
+    except Exception:
+        plate_confidence = 0.0
+
+    # Clamp and ensure float
+    try:
+        plate_confidence = float(np.clip(plate_confidence, 0.0, 1.0))
+    except Exception:
+        plate_confidence = 0.0
+
+    return (pred, plate_confidence)
 
     # return ocr_model.run(thresh_image)[0].replace("_", "")
 
@@ -172,12 +226,39 @@ def classify_color(color_model, image):
 
     return [pt_name, top1_conf]
 
+def detect_brand(brand_detector, car_image):
+    yolo_result = brand_detector(source=car_image, conf=0.3)
+
+    result = yolo_result[0]
+
+    print(f"Número de boxes no brand detector: {len(result.boxes)}")
+
+    if len(result.boxes) == 0:
+        return 'N/A'
+
+    # Pega a primeira detecção
+    box = result.boxes[0]
+    class_id = int(box.cls.cpu().numpy())
+
+    # Mapeia o ID da classe para o nome da marca
+    try:
+        brand_name = brand_detector.names[class_id]
+    except Exception:
+        try:
+            brand_name = brand_detector.names[str(class_id)]
+        except Exception:
+            brand_name = str(class_id)
+
+    brand_conf = float(box.conf.cpu().numpy())
+    print(brand_conf)
+    return brand_name, brand_conf
 def process_plate(file):
     model = current_app.config['YOLO']
     plate_model = current_app.config['YOLO_PLATE']
     plate_ocr = current_app.config['PLATE_OCR']
     color_model = current_app.config['COLOR']
     upload_folder = current_app.config['UPLOAD_FOLDER']
+    brand_detector = current_app.config['BRAND_DETECTOR']
     
     # Salva o arquivo temporariamente no upload_folder
     unique_id = str(uuid.uuid4())
@@ -195,7 +276,8 @@ def process_plate(file):
         car_image = detect_car(model, file_path)
         color = classify_color(color_model, car_image)
         plate = detect_plate(plate_model, car_image, output_path, unique_id)
-        string = convert_plate_to_string(plate, plate_ocr)
+        string, plate_conf = convert_plate_to_string(plate, plate_ocr)
+        brand, brand_conf = detect_brand(brand_detector, car_image)
     except Exception as e:
         # Limpa o arquivo temporário
         os.remove(file_path)
@@ -217,14 +299,14 @@ def process_plate(file):
     return {
         'plate': {
             'text': string or 'N/A',
-            'confidence': 0.0
+            'confidence': float(plate_conf) if isinstance(plate_conf, (int, float)) else 0.0
         },
         'color': {
             'text': color[0],
             'confidence': f"{color[1]:.5f}"
         },
         'brand': {
-            'text': 'N/A',
-            'confidence': 0.0
+            'text': brand or 'N/A',
+            'confidence': f"{brand_conf:.5f}"
         }
     }
