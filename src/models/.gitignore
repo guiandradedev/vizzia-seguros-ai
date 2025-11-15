@@ -1,3 +1,6 @@
 plate-model.pt
 yolo11n.pt
 color-classifier.pt
+brand-detector.pt
+color-classifier.pt
+yolo11x.pt
