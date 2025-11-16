@@ -2,9 +2,7 @@ from flask import Blueprint, request, jsonify
 from src.app.api.plate import process_plate
 from src.app.api.criminal_stats import get_nearby_crimes_amount
 from src.app.api.criminal_stats import classify_crime_amount
-from src.app.api.criminal_stats import get_model_robery_quantity
-
-from src.app.api.fipe_search import get_models_brand_by_year
+from src.app.api.fipe_search import get_models_brand_by_year, get_fipe_by_info_resumed
 from src.app.utils.err_api import ErrAPI
 bp = Blueprint('main', __name__)
 
@@ -67,18 +65,32 @@ def get_models_by_year():
         return models_json
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
-@bp.route('/get_model_robbery_rate', methods=['POST'])
-def criminal_statistc_route():
+
+
+@bp.route('/get_fipe', methods=['POST'])
+def get_fipe_by_info():
     data = request.get_json()
 
-    model_name = data.get('model_name')
-    
-    if not model_name:
-        return jsonify({'error' : 'campo modelo nulo'}), 400
-    try:
-        crime_rate = get_model_robery_quantity(model_name=model_name)
+    brand_code = data.get('brand_code')
+    client_car_model = data.get('client_car_model')
+    year = data.get('year')
+    motorization = data.get('motorization')
 
-        return crime_rate
+    if not brand_code:
+        return jsonify({'error' : 'campo ano nulo'}), 400
+    if not client_car_model:
+        return jsonify({'error' : 'campo marca nulo'}), 400
+    if not year:
+        return jsonify({'error' : 'campo ano nulo'}), 400
+    if not motorization:
+        return jsonify({'error' : 'campo motorização nulo'}), 400
+    
+    try:
+        models_json = get_fipe_by_info_resumed(brand_code=brand_code,
+                                               client_car_model=client_car_model,
+                                               year=year,
+                                               motorization=motorization)
+
+        return models_json
     except Exception as e:
         return jsonify({'error': str(e)}), 500
