@@ -22,6 +22,7 @@ def process_image_route():
         return jsonify({'error': str(e)}), e.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
 @bp.route('/estimate_details', methods=['POST'])
 def estimate_details():
     data = request.get_json()

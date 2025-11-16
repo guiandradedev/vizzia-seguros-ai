@@ -114,9 +114,12 @@ def is_cep_valid(zipcode):
 
 
 def get_model_robery_quantity(model_name):
-    df = current_app.config['ROBERY_DF']
+    robbery_df = current_app.config['ROBERY_DF']
     # df = pd.read_excel("src/data/robery_rate_df.xlsx")
+    print("tudo")
+    # print(df)
 
+    df = robbery_df.copy()
     model_name = model_name.split(" ")[0].upper()
 
     # Remove espaços extras
@@ -236,3 +239,6 @@ def separar_marca_modelo(valor):
         return partes[0].strip(), partes[1].strip()
     else:
         return valor, None
+
+
+# print(get_nearby_crimes_amount("13060073",500))
