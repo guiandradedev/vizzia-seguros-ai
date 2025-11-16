@@ -6,11 +6,14 @@ from geopy.geocoders import Nominatim
 import sys
 import os
 import unicodedata
+from flask import current_app
+
 # nfkd_form = unicodedata.normalize('NFD', texto)
 geolocator = Nominatim(user_agent="test_app")
 
 def get_nearby_crimes_amount(zipcode, radius=500):
-    vehicles_df = pd.read_csv('src/data/VeiculosSubtraidos_2017_2025.csv')
+    vehicles_df = current_app.config['VEHICLES_DF']
+    # vehicles_df = pd.read_csv('src/data/VeiculosSubtraidos_2017_2025.csv')
 
     has_lat_lon = is_cep_valid(zipcode)
     if has_lat_lon:
@@ -111,7 +114,10 @@ def is_cep_valid(zipcode):
 
 
 def get_model_robery_quantity(model_name):
-    df = pd.read_excel("src/data/robery_rate_df.xlsx")
+    df = current_app.config['ROBERY_DF']
+    # df = pd.read_excel("src/data/robery_rate_df.xlsx")
+
+    model_name = model_name.split(" ")[0].upper()
 
     # Remove espaços extras
     df["Marca"] = df["Marca"].str.strip()
@@ -230,5 +236,3 @@ def separar_marca_modelo(valor):
         return partes[0].strip(), partes[1].strip()
     else:
         return valor, None
-    
-print(get_model_robery_quantity("HB20"))

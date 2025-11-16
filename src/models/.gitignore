@@ -4,3 +4,4 @@ color-classifier.pt
 brand-detector.pt
 color-classifier.pt
 yolo11x.pt
+brand-classifier.pt

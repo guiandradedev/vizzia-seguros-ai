@@ -226,7 +226,7 @@ def classify_color(color_model, image):
 
     return [pt_name, top1_conf]
 
-def detect_brand(brand_detector, car_image):
+def detect_brand(brand_detector, brand_classifier, car_image):
     yolo_result = brand_detector(source=car_image, conf=0.3)
 
     result = yolo_result[0]
@@ -235,22 +235,18 @@ def detect_brand(brand_detector, car_image):
 
     if len(result.boxes) == 0:
         return 'N/A'
-
+    
     # Pega a primeira detecção
     box = result.boxes[0]
-    class_id = int(box.cls.cpu().numpy())
 
-    # Mapeia o ID da classe para o nome da marca
-    try:
-        brand_name = brand_detector.names[class_id]
-    except Exception:
-        try:
-            brand_name = brand_detector.names[str(class_id)]
-        except Exception:
-            brand_name = str(class_id)
+    x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+    brand_cropped = car_image[y1:y2, x1:x2]
 
-    brand_conf = float(box.conf.cpu().numpy())
-    print(brand_conf)
+    brand_result = brand_classifier(source=brand_cropped, conf=0.3)
+    brand_result = brand_result[0]
+    brand_name = brand_classifier.names[brand_result.probs.top1]
+    brand_conf = float(brand_result.probs.top1conf.cpu().numpy())
+    
     return brand_name, brand_conf
 def process_plate(file):
     model = current_app.config['YOLO']
@@ -259,6 +255,7 @@ def process_plate(file):
     color_model = current_app.config['COLOR']
     upload_folder = current_app.config['UPLOAD_FOLDER']
     brand_detector = current_app.config['BRAND_DETECTOR']
+    brand_classifier = current_app.config['BRAND_CLASSIFIER']
     
     # Salva o arquivo temporariamente no upload_folder
     unique_id = str(uuid.uuid4())
@@ -277,7 +274,7 @@ def process_plate(file):
         color = classify_color(color_model, car_image)
         plate = detect_plate(plate_model, car_image, output_path, unique_id)
         string, plate_conf = convert_plate_to_string(plate, plate_ocr)
-        brand, brand_conf = detect_brand(brand_detector, car_image)
+        brand, brand_conf = detect_brand(brand_detector, brand_classifier, car_image)
     except Exception as e:
         # Limpa o arquivo temporário
         os.remove(file_path)
